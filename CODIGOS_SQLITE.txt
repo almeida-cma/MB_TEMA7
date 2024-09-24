@@ -1,0 +1,143 @@
+MainActivity.kt
+---------------
+package com.example.sqlite
+
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ListView
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var dbHelper: DatabaseHelper
+    private lateinit var listaView: ListView
+    private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var listaItens: MutableList<String>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        dbHelper = DatabaseHelper(this)
+        listaView = findViewById(R.id.listaView)
+        listaItens = dbHelper.lerItens().toMutableList()
+
+        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listaItens)
+        listaView.adapter = adapter
+
+        val editTextItem = findViewById<EditText>(R.id.editTextItem)
+        val botaoAdicionar = findViewById<Button>(R.id.botaoAdicionar)
+
+        botaoAdicionar.setOnClickListener {
+            val item = editTextItem.text.toString()
+            if (item.isNotEmpty()) {
+                dbHelper.inserirItem(item)
+                listaItens.add(item)
+                adapter.notifyDataSetChanged()
+                editTextItem.text.clear()
+            }
+        }
+
+        listaView.setOnItemClickListener { _, _, position, _ ->
+            val item = listaItens[position]
+            if (dbHelper.excluirItem(item)) {
+                listaItens.removeAt(position)
+                adapter.notifyDataSetChanged()
+            }
+        }
+    }
+}
+---------------------------
+
+DatabaseHelper.kt
+--------------------
+package com.example.sqlite
+
+import android.content.ContentValues
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+
+class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    companion object {
+        private const val DATABASE_NAME = "AppDatabase.db"
+        private const val DATABASE_VERSION = 1
+        const val TABLE_NAME = "Lista"
+        const val COLUMN_ID = "id"
+        const val COLUMN_ITEM = "item"
+    }
+
+    override fun onCreate(db: SQLiteDatabase) {
+        val createTable = ("CREATE TABLE $TABLE_NAME ($COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT, $COLUMN_ITEM TEXT)")
+        db.execSQL(createTable)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+        onCreate(db)
+    }
+
+    // Função para inserir item
+    fun inserirItem(item: String): Long {
+        val db = this.writableDatabase
+        val contentValues = ContentValues()
+        contentValues.put(COLUMN_ITEM, item)
+        return db.insert(TABLE_NAME, null, contentValues)
+    }
+
+    // Função para ler itens
+    fun lerItens(): List<String> {
+        val lista = mutableListOf<String>()
+        val db = this.readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_NAME", null)
+
+        if (cursor.moveToFirst()) {
+            do {
+                val item = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM))
+                lista.add(item)
+            } while (cursor.moveToNext())
+        }
+
+        cursor.close()
+        return lista
+    }
+
+    // Função para excluir item
+    fun excluirItem(item: String): Boolean {
+        val db = this.writableDatabase
+        return db.delete(TABLE_NAME, "$COLUMN_ITEM = ?", arrayOf(item)) > 0
+    }
+}
+-------------------------------------
+
+activity_main.xml
+-----------------
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/editTextItem"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Digite um item" />
+
+    <Button
+        android:id="@+id/botaoAdicionar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Adicionar" />
+
+    <ListView
+        android:id="@+id/listaView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>
+-------------------------

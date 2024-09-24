@@ -1,0 +1,313 @@
+REGRAS Cloud Firestore:
+-------------------------
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // This rule allows anyone with your Firestore database reference to view, edit,
+    // and delete all data in your Firestore database. It is useful for getting
+    // started, but it is configured to expire after 30 days because it
+    // leaves your app open to attackers. At that time, all client
+    // requests to your Firestore database will be denied.
+    //
+    // Make sure to write security rules for your app before that time, or else
+    // all client requests to your Firestore database will be denied until you Update
+    // your rules
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+--------------------------
+
+google-services.json
+----------------------
+{
+  "project_info": {
+    "project_number": "916964957327",
+    "project_id": "js-users",
+    "storage_bucket": "js-users.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:916964957327:android:8f2944a855282cbfe9e4fa",
+        "android_client_info": {
+          "package_name": "com.example.firebase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANT6lalenOij5YKVgItPioLF3cOfs7vSw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+----------------------------------------
+
+activity_maim.xml
+------------------
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/editTextItem"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Digite um item" />
+
+    <Button
+        android:id="@+id/botaoAdicionar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Adicionar" />
+
+    <ListView
+        android:id="@+id/listaView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+</LinearLayout>
+----------------------------------------
+
+AndroidManifest.xml: <uses-permission android:name="android.permission.INTERNET" />
+---------------------
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Firebase"
+        tools:targetApi="31">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
+-----------------------------
+
+MainActivity.kt
+---------------
+package com.example.firebase
+
+import android.os.Bundle
+import android.util.Log
+import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.firestore.FirebaseFirestore
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var listaView: ListView
+    private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var listaItens: MutableList<String>
+    private lateinit var firestoreService: FirestoreService
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Inicializar FirestoreService
+        firestoreService = FirestoreService()
+
+        listaView = findViewById(R.id.listaView)
+        listaItens = mutableListOf()
+
+        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listaItens)
+        listaView.adapter = adapter
+
+        val editTextItem = findViewById<EditText>(R.id.editTextItem)
+        val botaoAdicionar = findViewById<Button>(R.id.botaoAdicionar)
+
+        // Adicionando item ao Firestore e à lista
+        botaoAdicionar.setOnClickListener {
+            val item = editTextItem.text.toString()
+            if (item.isNotEmpty()) {
+                firestoreService.inserirItem(item) { sucesso ->
+                    if (sucesso) {
+                        listaItens.add(item)
+                        adapter.notifyDataSetChanged()
+                        editTextItem.text.clear()
+                    } else {
+                        Toast.makeText(this, "Erro ao adicionar item", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        // Excluindo item ao clicar
+        listaView.setOnItemClickListener { _, _, position, _ ->
+            val item = listaItens[position]
+            firestoreService.excluirItem(item) { sucesso ->
+                if (sucesso) {
+                    listaItens.removeAt(position)
+                    adapter.notifyDataSetChanged()
+                } else {
+                    Toast.makeText(this, "Erro ao excluir item", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Carregar itens ao iniciar a Activity
+        carregarItens()
+    }
+
+    private fun carregarItens() {
+        firestoreService.carregarItens { itens ->
+            if (itens != null) {
+                listaItens.clear()
+                listaItens.addAll(itens)
+                adapter.notifyDataSetChanged()
+            } else {
+                Log.d("Firestore", "Nenhum item encontrado.")
+            }
+        }
+    }
+}
+----------------------------------
+
+FirestoreService.kt
+--------------------
+package com.example.firebase
+
+import com.google.firebase.firestore.FirebaseFirestore
+
+class FirestoreService {
+
+    private val db = FirebaseFirestore.getInstance()
+    private val collectionPath = "lista"
+
+    fun inserirItem(item: String, callback: (Boolean) -> Unit) {
+        val itemData = hashMapOf("item" to item)
+        db.collection(collectionPath)
+            .add(itemData)
+            .addOnSuccessListener {
+                callback(true)
+            }
+            .addOnFailureListener {
+                callback(false)
+            }
+    }
+
+    fun excluirItem(item: String, callback: (Boolean) -> Unit) {
+        db.collection(collectionPath)
+            .whereEqualTo("item", item)
+            .get()
+            .addOnSuccessListener { documents ->
+                for (document in documents) {
+                    db.collection(collectionPath).document(document.id)
+                        .delete()
+                        .addOnSuccessListener { callback(true) }
+                        .addOnFailureListener { callback(false) }
+                }
+            }
+            .addOnFailureListener {
+                callback(false)
+            }
+    }
+
+    fun carregarItens(callback: (List<String>?) -> Unit) {
+        db.collection(collectionPath)
+            .get()
+            .addOnSuccessListener { documents ->
+                val itens = documents.mapNotNull { it.getString("item") }
+                callback(itens)
+            }
+            .addOnFailureListener {
+                callback(null)
+            }
+    }
+}
+-----------------------------------
+
+build.gradle.kts (Project)
+----------------------------
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+plugins {
+    id("com.android.application") version "8.1.4" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
+----------------------------
+
+build.gradle.kts (Module)
+----------------------------
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
+}
+
+android {
+    namespace = "com.example.firebase"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.firebase"
+        minSdk = 21
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+dependencies {
+    implementation("com.google.firebase:firebase-firestore:24.8.1") // Adicione a dependência do Firestore
+    implementation("androidx.core:core-ktx:1.9.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+}
+----------------------------------
