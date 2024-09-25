@@ -23,35 +23,7 @@ service cloud.firestore {
 
 google-services.json
 ----------------------
-{
-  "project_info": {
-    "project_number": "916964957327",
-    "project_id": "js-users",
-    "storage_bucket": "js-users.appspot.com"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:916964957327:android:8f2944a855282cbfe9e4fa",
-        "android_client_info": {
-          "package_name": "com.example.firebase"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyANT6lalenOij5YKVgItPioLF3cOfs7vSw"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
-}
+Gerar via FIREBASE
 ----------------------------------------
 
 activity_maim.xml
